@@ -1,0 +1,114 @@
+*replua.nvim*             replua.nvim - Lua scratch REPL for Neovim
+
+==============================================================================
+INTRODUCTION                                           *replua.nvim-intro*
+
+replua.nvim provides an Emacs-style scratch buffer for experimenting with Lua
+inside a running Neovim instance. Evaluations share the editor's global
+environment, so the buffer can call Neovim APIs, define globals, and inspect
+state without leaving the editor.
+
+==============================================================================
+QUICKSTART                                             *replua.nvim-quickstart*
+
+>lua
+require("replua").setup()
+<
+
+The plugin ships with a |plugin| loader that runs the same call automatically,
+but configuring it yourself lets you adjust options (see |replua.nvim-config|).
+
+- `:RepluaOpen` creates or reuses `replua://scratch`.
+- Type Lua, then trigger one of the evaluation mappings listed below.
+- Results are appended as Lua comments (`-- =>`) immediately after the code.
+
+==============================================================================
+SCRATCH BUFFER                                         *replua.nvim-buffer*
+
+The scratch buffer is created with `:enew` by default. You can change the
+creation command via |replua.nvim-config| (for example, open a split).
+
+Any Lua executed from the buffer:
+
+- Runs with `_G` as its backing environment, so `vim` and any globals you
+  define remain available to Neovim.
+- Captures both return values and `print()` output. Each value is formatted
+  with `vim.inspect()` and written as a comment. `print()` output appears
+  prefixed by `-- print:`.
+- Leaves the cursor after the newly inserted result block and an optional blank
+  line, ready for more input.
+
+==============================================================================
+MAPPINGS                                              *replua.nvim-mappings*
+
+By default, replua.nvim installs these buffer-local mappings when the scratch
+buffer is opened. Replace `<localleader>` with your configured local leader
+(defaults to `\`):
+
+Normal mode~
+    <localleader>e   Evaluate the current line
+    <localleader><CR> Evaluate the contiguous Lua block around the cursor
+    <localleader>r   Evaluate the entire scratch buffer
+
+Visual mode~
+    <localleader>e   Evaluate the selected range
+
+All mappings may be overridden or disabled via |replua.nvim-config|.
+
+==============================================================================
+COMMANDS                                               *replua.nvim-commands*
+
+:RepluaOpen              Open or focus the scratch buffer.
+:RepluaEval              Evaluate the entire scratch buffer (same as
+                         `<localleader>r` inside the buffer).
+:RepluaReset             Clear the evaluation environment so the next run
+                         starts fresh.
+
+==============================================================================
+CONFIGURATION                                          *replua.nvim-config*
+
+Pass options to `require("replua").setup({ ... })`. Unspecified keys fall back
+to sensible defaults.
+
+`open_command` (string|fun)~
+    Command or function that selects how the scratch buffer is created.
+    Defaults to `"enew"`. Examples: `"botright 15split"` or a callable such as
+    `function() vim.cmd("tabnew") end`.
+
+`intro_lines` (table|nil)~
+    Lines inserted when the buffer is created. Set to `nil` or an empty table
+    to start with a blank buffer.
+
+`keymaps` (table)~
+    Override or disable buffer-local mappings. Valid keys: `eval_line`,
+    `eval_visual`, `eval_block`, `eval_buffer`. Set a field to `nil` to skip
+    the mapping entirely.
+
+`print_prefix`, `result_prefix`, `result_continuation_prefix`, `error_prefix`~
+    Strings used when formatting output blocks. Useful for aligning with
+    custom comment conventions.
+
+`show_nil_results` (boolean)~
+    When `true`, inserts `-- => nil` when evaluation returns no values and
+    produces no prints. Defaults to `true`.
+
+`newline_after_result` (boolean)~
+    When `true`, appends a blank line after each result block unless one is
+    already present. Defaults to `true`.
+
+`persist_env` (boolean)~
+    When `true`, the evaluation environment survives scratch buffer closes and
+    reopens during the session. Set to `false` to rebuild the environment each
+    time the buffer is re-created. You can also reset manually with
+    `:RepluaReset`.
+
+==============================================================================
+NOTES                                                   *replua.nvim-notes*
+
+- The scratch buffer is a `nofile` buffer without swapfile or shada entries.
+- The plugin does not install global mappings; all shortcuts are buffer local.
+- Run |:helptags| on the plugin's `doc/` directory after installation so this
+  help file is discoverable: `:helptags /path/to/replua.nvim/doc`.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
