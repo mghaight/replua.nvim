@@ -9,6 +9,7 @@ An Emacs-style scratch buffer for executing Lua inside Neovim. `replua.nvim` ope
 - Captures both returned values and `print()` output, appending results as Lua comments.
 - Keeps the cursor at a fresh spot for continued editing, just like pressing `C-j` in Emacs.
 - Provides commands for opening the buffer, evaluating everything, and resetting the Lua environment.
+- Top-level assignments echo their values and stay available for later evaluations, even when declared with `local`.
 
 ## Installation
 

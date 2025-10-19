@@ -30,6 +30,31 @@ local state = {
   commands_created = false,
 }
 
+local lua_keywords = {
+  ["and"] = true,
+  ["break"] = true,
+  ["do"] = true,
+  ["else"] = true,
+  ["elseif"] = true,
+  ["end"] = true,
+  ["false"] = true,
+  ["for"] = true,
+  ["function"] = true,
+  ["goto"] = true,
+  ["if"] = true,
+  ["in"] = true,
+  ["local"] = true,
+  ["nil"] = true,
+  ["not"] = true,
+  ["or"] = true,
+  ["repeat"] = true,
+  ["return"] = true,
+  ["then"] = true,
+  ["true"] = true,
+  ["until"] = true,
+  ["while"] = true,
+}
+
 local function extend_config(opts)
   if not opts then
     return
@@ -68,6 +93,7 @@ local function build_env()
       return rawget(_G, key)
     end,
     __newindex = function(_, key, value)
+      rawset(env, key, value)
       rawset(_G, key, value)
     end,
   })
@@ -78,17 +104,17 @@ end
 
 local function capture_print(env)
   local prints = {}
-  env.print = function(...)
+  rawset(env, "print", function(...)
     local pieces = {}
     for i = 1, select("#", ...) do
       local value = select(i, ...)
       pieces[i] = tostring(value)
     end
     table.insert(prints, table.concat(pieces, "\t"))
-  end
+  end)
 
   return function()
-    env.print = nil
+    rawset(env, "print", nil)
     return prints
   end
 end
@@ -125,10 +151,99 @@ local function render_error_lines(err)
   return lines
 end
 
+local function is_identifier(name)
+  if not name or name == "" then
+    return false
+  end
+  if lua_keywords[name] then
+    return false
+  end
+  return name:match("^[%a_][%w_]*$") ~= nil
+end
+
+local function split_identifiers(text)
+  local names = {}
+  for part in text:gmatch("[^,%s]+") do
+    if not is_identifier(part) then
+      return nil
+    end
+    table.insert(names, part)
+  end
+  if #names == 0 then
+    return nil
+  end
+  return names
+end
+
+local function append_env_updates(lines, names)
+  for _, name in ipairs(names) do
+    table.insert(lines, string.format("_ENV[%q] = %s", name, name))
+  end
+  table.insert(lines, "return " .. table.concat(names, ", "))
+end
+
+local function transform_assignment(code)
+  local trimmed = vim.trim(code)
+  if trimmed == "" then
+    return code
+  end
+
+  local function rhs_starts_with_equals(rhs)
+    if not rhs then
+      return false
+    end
+    return rhs:match("^%s*=") ~= nil
+  end
+
+  local function build_lines(base, names, include_env)
+    local lines = { base }
+    if include_env then
+      append_env_updates(lines, names)
+    else
+      table.insert(lines, "return " .. table.concat(names, ", "))
+    end
+    return table.concat(lines, "\n")
+  end
+
+  local func_name = trimmed:match("^local%s+function%s+([%a_][%w_]*)%s*%(")
+  if func_name then
+    local lines = { code }
+    append_env_updates(lines, { func_name })
+    return table.concat(lines, "\n")
+  end
+
+  local local_names, local_rhs = trimmed:match("^local%s+([%a_][%w_%s,]*)%s*=%s*(.+)$")
+  if local_names and not rhs_starts_with_equals(local_rhs) then
+    local names = split_identifiers(local_names)
+    if names then
+      return build_lines(code, names, true)
+    end
+  end
+
+  local local_only = trimmed:match("^local%s+([%a_][%w_%s,]*)%s*$")
+  if local_only then
+    local names = split_identifiers(local_only)
+    if names then
+      return build_lines(code, names, true)
+    end
+  end
+
+  local global_names, global_rhs = trimmed:match("^([%a_][%w_%s,]*)%s*=%s*(.+)$")
+  if global_names and not rhs_starts_with_equals(global_rhs) then
+    local names = split_identifiers(global_names)
+    if names then
+      return build_lines(code, names, false)
+    end
+  end
+
+  return code
+end
+
 local function eval(code)
   local env = build_env()
   local chunk, err = load("return " .. code, "replua", "t", env)
   if not chunk then
+    code = transform_assignment(code)
     chunk, err = load(code, "replua", "t", env)
   end
   if not chunk then
