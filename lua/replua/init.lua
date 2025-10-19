@@ -352,7 +352,8 @@ local function eval_visual(bufnr)
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
   local inserted = eval_range(bufnr, start_line, end_line)
   local inserted_count = inserted or 0
-  local target = end_line + inserted_count
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  local target = math.min(end_line + inserted_count, line_count - 1)
   vim.api.nvim_win_set_cursor(0, { target + 1, 0 })
 end
 
