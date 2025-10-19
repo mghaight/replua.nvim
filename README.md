@@ -12,20 +12,9 @@ interaction mode.
 - Evaluate the current line, surrounding block, or the whole buffer.
 - Captures both returned values and `print()` output, appending results as Lua
   comments.
-- Re-running the same code replaces the previous output block, keeping the
-  scratch buffer tidy.
-- Keeps the cursor at a fresh spot for continued editing, just like pressing
-  `C-j` in Emacs.
-- Provides commands for opening the buffer, evaluating everything, and
-  resetting the Lua environment.
-- The scratch buffer persists for the entire Neovim session; reopen it with
-  `:RepluaOpen` to resume where you left off (closing the buffer resets it),
-  and it stays listed in `:buffers` so fuzzy pickers can find it.
 - Each scratch buffer owns its own Lua environment. Close a buffer (or open a
   new one with `:RepluaOpen!`) to start from a clean slate without affecting
   other replua instances.
-- Top-level assignments echo their values and stay available for later
-  evaluation.
 
 ## Installation
 
@@ -84,12 +73,12 @@ vim.api.nvim_set_option_value("number", true, { scope = "local", win = 0 })
 -- => nil
 ```
 
-<!--
 ## Configuration
 
 Customize behaviour through `setup()`:
 
 ```lua
+-- example configuration
 require("replua").setup({
   open_command = "botright 15split",
   keymaps = {
@@ -111,4 +100,3 @@ require("replua").setup({
 
 Any option may be omitted to keep the defaults. Tables are merged, so
 redefining a single keymap leaves the others untouched.
--->
