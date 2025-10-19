@@ -84,10 +84,7 @@ require("replua").setup({
   result_prefix = "-- => ",
   newline_after_result = true,
   persist_env = true,
-  diagnostics_disable = { "exp-in-action" },
 })
 ```
 
 Any option may be omitted to keep the defaults. Tables are merged, so redefining a single keymap leaves the others untouched.
-
-`diagnostics_disable` injects a `---@diagnostic disable:` directive at the top of the scratch buffer. Keeping `{"exp-in-action"}` mirrors the default behaviour in many Lua LSPs by ignoring warnings about bare expressions while still reporting other issues. Set it to an empty table to keep every diagnostic.

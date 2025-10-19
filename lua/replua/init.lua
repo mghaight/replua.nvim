@@ -19,7 +19,6 @@ local defaults = {
   show_nil_results = true,
   newline_after_result = true,
   persist_env = true,
-  diagnostics_disable = { "exp-in-action" },
 }
 
 local config = vim.deepcopy(defaults)
@@ -392,12 +391,6 @@ local function configure_buffer(bufnr)
     intro = vim.deepcopy(intro)
   else
     intro = {}
-  end
-
-  local disable_codes = config.diagnostics_disable
-  if type(disable_codes) == "table" and #disable_codes > 0 then
-    local directive = "---@diagnostic disable: " .. table.concat(disable_codes, ", ")
-    table.insert(intro, 1, directive)
   end
 
   if #intro == 0 then
