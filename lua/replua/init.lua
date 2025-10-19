@@ -458,16 +458,34 @@ local function setup_keymaps(bufnr)
   end
 end
 
+local function is_placeholder_buffer(bufnr)
+  if not bufnr or bufnr == 0 or not vim.api.nvim_buf_is_valid(bufnr) then
+    return false
+  end
+  if vim.api.nvim_buf_get_option(bufnr, "buflisted") then
+    return false
+  end
+  if vim.api.nvim_buf_get_name(bufnr) ~= "" then
+    return false
+  end
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if line_count > 1 then
+    return false
+  end
+  local line = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)[1]
+  return not line or line == ""
+end
+
 local function open_target_window()
   local command = config.open_command
   if type(command) == "function" then
     command()
   elseif type(command) == "string" and command ~= "" then
-    vim.cmd(command)
-  else
-    vim.cmd("enew")
+    vim.cmd("keepalt " .. command)
   end
-  return vim.api.nvim_get_current_win()
+  local win = vim.api.nvim_get_current_win()
+  local placeholder = vim.api.nvim_win_get_buf(win)
+  return win, placeholder
 end
 
 local function attach_buffer(bufnr)
@@ -532,8 +550,11 @@ function M.open(opts)
   if #wins > 0 then
     vim.api.nvim_set_current_win(wins[1])
   else
-    open_target_window()
-    vim.api.nvim_win_set_buf(0, bufnr)
+    local win, placeholder = open_target_window()
+    vim.api.nvim_win_set_buf(win, bufnr)
+    if placeholder ~= bufnr and is_placeholder_buffer(placeholder) then
+      pcall(vim.api.nvim_buf_delete, placeholder, { force = false })
+    end
   end
 
   if created then
