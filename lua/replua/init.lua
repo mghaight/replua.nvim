@@ -263,11 +263,15 @@ local function configure_buffer(bufnr)
 
   vim.api.nvim_buf_set_name(bufnr, "replua://scratch")
 
-  if type(config.intro_lines) == "table" then
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, config.intro_lines)
-  else
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "" })
+  local intro = config.intro_lines
+  if type(intro) == "string" then
+    intro = vim.split(intro, "\n", { plain = true })
   end
+  if type(intro) ~= "table" then
+    intro = { "" }
+  end
+
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, intro)
 end
 
 local function setup_keymaps(bufnr)
