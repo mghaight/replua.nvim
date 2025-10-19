@@ -40,7 +40,8 @@ Any Lua executed from the buffer:
 - Re-evaluating the same line, block, or entire buffer removes the previous
   output block before inserting the new results, keeping the scratch tidy.
 - The buffer persists for the lifetime of your Neovim session; run
-  |:RepluaOpen| again to jump back. Only closing the buffer wipes the history.
+  |:RepluaOpen| again to jump back. Only closing the buffer wipes the history,
+  and the buffer stays listed so `:ls`/pickers can locate it.
 
 ==============================================================================
 MAPPINGS                                              *replua.nvim-mappings*

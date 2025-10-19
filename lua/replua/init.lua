@@ -402,7 +402,6 @@ local function configure_buffer(bufnr)
   local opts = {
     buftype = "nofile",
     bufhidden = "hide",
-    buflisted = false,
     swapfile = false,
     modifiable = true,
     filetype = "lua",
@@ -485,7 +484,7 @@ local function attach_buffer(bufnr)
 end
 
 local function create_repl_buffer()
-  local bufnr = vim.api.nvim_create_buf(false, true)
+  local bufnr = vim.api.nvim_create_buf(true, true)
   configure_buffer(bufnr)
   setup_keymaps(bufnr)
   attach_buffer(bufnr)

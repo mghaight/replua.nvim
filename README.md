@@ -19,7 +19,8 @@ interaction mode.
 - Provides commands for opening the buffer, evaluating everything, and
   resetting the Lua environment.
 - The scratch buffer persists for the entire Neovim session; reopen it with
-  `:RepluaOpen` to resume where you left off (closing the buffer resets it).
+  `:RepluaOpen` to resume where you left off (closing the buffer resets it),
+  and it stays listed in `:buffers` so fuzzy pickers can find it.
 - Top-level assignments echo their values and stay available for later
   evaluation.
 
