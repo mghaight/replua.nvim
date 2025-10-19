@@ -261,7 +261,7 @@ local function configure_buffer(bufnr)
   }
 
   for name, value in pairs(opts) do
-    vim.api.nvim_set_option_value(name, value, bufnr)
+    vim.api.nvim_set_option_value(name, value, { buf = bufnr })
   end
 
   vim.api.nvim_buf_set_name(bufnr, "replua://scratch")
