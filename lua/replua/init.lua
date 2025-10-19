@@ -374,6 +374,16 @@ function M.open()
   setup_keymaps(bufnr)
   attach_buffer(bufnr)
 
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if line_count > 0 then
+    local last_line = vim.api.nvim_buf_get_lines(bufnr, line_count - 1, line_count, false)[1]
+    if last_line ~= "" then
+      vim.api.nvim_buf_set_lines(bufnr, line_count, line_count, false, { "" })
+      line_count = line_count + 1
+    end
+    vim.api.nvim_win_set_cursor(0, { line_count, 0 })
+  end
+
   return bufnr
 end
 
