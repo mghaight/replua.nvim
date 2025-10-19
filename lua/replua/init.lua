@@ -523,10 +523,10 @@ local function is_placeholder_buffer(bufnr)
   if vim.api.nvim_buf_get_name(bufnr) ~= "" then
     return false
   end
-  if vim.api.nvim_buf_get_option(bufnr, "modified") then
+  if vim.api.nvim_get_option_value("modified", { buf = bufnr }) then
     return false
   end
-  if vim.api.nvim_buf_get_option(bufnr, "buftype") ~= "" then
+  if vim.api.nvim_get_option_value("buftype", { buf = bufnr }) ~= "" then
     return false
   end
   local line_count = vim.api.nvim_buf_line_count(bufnr)
