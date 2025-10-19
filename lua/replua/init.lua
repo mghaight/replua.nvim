@@ -84,6 +84,7 @@ end
 
 local function build_env()
   if state.env then
+    state.env._ENV = state.env
     return state.env
   end
 
@@ -97,6 +98,7 @@ local function build_env()
       rawset(_G, key, value)
     end,
   })
+  env._ENV = env
 
   state.env = env
   return env
