@@ -3,7 +3,7 @@ local M = {}
 local defaults = {
   open_command = "enew",
   intro_lines = {
-    "-- replua.nvim scratch buffer",
+    "-- replua.nvim *scratch* buffer",
     "-- Evaluate Lua with <localleader>e (line / visual), <localleader><CR> (block), or <localleader>r (buffer).",
     "-- Results are appended as Lua comments with Neovim APIs available.",
     "",
@@ -261,7 +261,7 @@ local function configure_buffer(bufnr)
   }
 
   for name, value in pairs(opts) do
-    vim.api.nvim_buf_set_option(bufnr, name, value)
+    vim.api.nvim_set_option_value(name, value, bufnr)
   end
 
   vim.api.nvim_buf_set_name(bufnr, "replua://scratch")
