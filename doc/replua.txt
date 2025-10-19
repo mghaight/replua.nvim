@@ -19,6 +19,7 @@ The plugin ships with a |plugin| loader that runs the same call automatically,
 but configuring it yourself lets you adjust options (see |replua.nvim-config|).
 
 - `:RepluaOpen` creates or reuses `replua://scratch`.
+- `:RepluaOpen!` creates an additional scratch buffer with a fresh environment.
 - Type Lua, then trigger one of the evaluation mappings listed below.
 - Results are appended as Lua comments (`-- =>`) immediately after the code.
 
@@ -39,6 +40,8 @@ Any Lua executed from the buffer:
   line, ready for more input.
 - Re-evaluating the same line, block, or entire buffer removes the previous
   output block before inserting the new results, keeping the scratch tidy.
+- Each buffer owns its own Lua environment. Open another buffer (or wipe the
+  current one) for a clean scope without affecting the rest.
 - The buffer persists for the lifetime of your Neovim session; run
   |:RepluaOpen| again to jump back. Only closing the buffer wipes the history,
   and the buffer stays listed so `:ls`/pickers can locate it.
@@ -60,7 +63,8 @@ All mappings may be overridden or disabled via |replua.nvim-config|.
 ==============================================================================
 COMMANDS                                               *replua.nvim-commands*
 
-:RepluaOpen              Open or focus the scratch buffer.
+:RepluaOpen              Open or focus the most recent scratch buffer.
+:RepluaOpen!             Create a new scratch buffer with a fresh environment.
 :RepluaEval              Evaluate the entire scratch buffer (same as
                          `<localleader>r` inside the buffer).
 :RepluaReset             Clear the evaluation environment so the next run
@@ -99,10 +103,10 @@ to sensible defaults.
     already present. Defaults to `true`.
 
 `persist_env` (boolean)~
-    When `true`, the evaluation environment survives scratch buffer closes and
-    reopens during the session. Set to `false` to rebuild the environment each
-    time the buffer is re-created. You can also reset manually with
-    `:RepluaReset`.
+    When `true`, a buffer keeps its environment across repeated |:RepluaOpen|
+    calls. Set to `false` to wipe the environment each time the command is
+    used. Closing the buffer always discards its environment. Reset manually
+    with |:RepluaReset|.
 
 ==============================================================================
 NOTES                                                   *replua.nvim-notes*

@@ -21,6 +21,9 @@ interaction mode.
 - The scratch buffer persists for the entire Neovim session; reopen it with
   `:RepluaOpen` to resume where you left off (closing the buffer resets it),
   and it stays listed in `:buffers` so fuzzy pickers can find it.
+- Each scratch buffer owns its own Lua environment. Close a buffer (or open a
+  new one with `:RepluaOpen!`) to start from a clean slate without affecting
+  other replua instances.
 - Top-level assignments echo their values and stay available for later
   evaluation.
 
@@ -54,6 +57,8 @@ Open the scratch buffer with:
 :RepluaOpen
 ```
 
+Need another scratch buffer? Run `:RepluaOpen!` for a fresh instance.
+
 The default keymaps inside the buffer mirror Emacs-style interactions:
 
 | Mapping             | Mode | Action                                |
@@ -68,6 +73,7 @@ output`, and drops you onto a new blank line ready for more Lua.
 Additional commands:
 
 - `:RepluaEval` &mdash; Evaluate the entire scratch buffer.
+- `:RepluaOpen!` &mdash; Create a new replua buffer with a fresh environment.
 - `:RepluaReset` &mdash; Reset the Lua environment used for evaluation.
 
 Because the environment proxies `_G`, anything you define becomes available to

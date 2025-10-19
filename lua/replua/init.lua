@@ -24,8 +24,10 @@ local config = vim.deepcopy(defaults)
 
 local state = {
   buf = nil,
-  env = nil,
+  buffers = {},
+  env_by_buf = {},
   commands_created = false,
+  counter = 0,
 }
 
 local lua_keywords = {
@@ -65,9 +67,9 @@ local function ensure_commands()
     return
   end
 
-  vim.api.nvim_create_user_command("RepluaOpen", function()
-    M.open()
-  end, { desc = "Open the replua.nvim scratch buffer" })
+  vim.api.nvim_create_user_command("RepluaOpen", function(opts)
+    M.open({ force_new = opts.bang })
+  end, { desc = "Open the replua.nvim scratch buffer", bang = true })
 
   vim.api.nvim_create_user_command("RepluaEval", function()
     M.eval_current_buffer()
@@ -80,10 +82,11 @@ local function ensure_commands()
   state.commands_created = true
 end
 
-local function build_env()
-  if state.env then
-    state.env._ENV = state.env
-    return state.env
+local function build_env(bufnr)
+  local existing = state.env_by_buf[bufnr]
+  if existing then
+    existing._ENV = existing
+    return existing
   end
 
   local env = {}
@@ -93,12 +96,11 @@ local function build_env()
     end,
     __newindex = function(_, key, value)
       rawset(env, key, value)
-      rawset(_G, key, value)
     end,
   })
   env._ENV = env
 
-  state.env = env
+  state.env_by_buf[bufnr] = env
   return env
 end
 
@@ -248,13 +250,9 @@ local function transform_assignment(code)
     return rhs:match("^%s*=") ~= nil
   end
 
-  local function build_lines(base, names, include_env)
+  local function build_lines(base, names)
     local lines = { base }
-    if include_env then
-      append_env_updates(lines, names)
-    else
-      table.insert(lines, "return " .. table.concat(names, ", "))
-    end
+    append_env_updates(lines, names)
     return table.concat(lines, "\n")
   end
 
@@ -269,7 +267,7 @@ local function transform_assignment(code)
   if local_names and not rhs_starts_with_equals(local_rhs) then
     local names = split_identifiers(local_names)
     if names then
-      return build_lines(code, names, true)
+      return build_lines(code, names)
     end
   end
 
@@ -277,7 +275,7 @@ local function transform_assignment(code)
   if local_only then
     local names = split_identifiers(local_only)
     if names then
-      return build_lines(code, names, true)
+      return build_lines(code, names)
     end
   end
 
@@ -285,15 +283,15 @@ local function transform_assignment(code)
   if global_names and not rhs_starts_with_equals(global_rhs) then
     local names = split_identifiers(global_names)
     if names then
-      return build_lines(code, names, false)
+      return build_lines(code, names)
     end
   end
 
   return code
 end
 
-local function eval(code)
-  local env = build_env()
+local function eval(bufnr, code)
+  local env = build_env(bufnr)
   local chunk, err = load("return " .. code, "replua", "t", env)
   if not chunk then
     code = transform_assignment(code)
@@ -370,7 +368,7 @@ local function eval_range(bufnr, start_line, end_line)
   end
 
   local code = table.concat(lines, "\n")
-  local ok, result_lines = eval(code)
+  local ok, result_lines = eval(bufnr, code)
 
   if not ok then
     return insert_result(bufnr, end_line + 1, result_lines)
@@ -398,7 +396,7 @@ local function eval_block(bufnr, line)
   vim.api.nvim_win_set_cursor(0, { target + 1, 0 })
 end
 
-local function configure_buffer(bufnr)
+local function configure_buffer(bufnr, buf_name)
   local opts = {
     buftype = "nofile",
     bufhidden = "hide",
@@ -407,11 +405,11 @@ local function configure_buffer(bufnr)
     filetype = "lua",
   }
 
-  for name, value in pairs(opts) do
-    vim.api.nvim_set_option_value(name, value, { buf = bufnr })
+  for option, value in pairs(opts) do
+    vim.api.nvim_set_option_value(option, value, { buf = bufnr })
   end
 
-  vim.api.nvim_buf_set_name(bufnr, "replua://scratch")
+  vim.api.nvim_buf_set_name(bufnr, buf_name or "replua://scratch")
 
   local intro = config.intro_lines
   if type(intro) == "string" then
@@ -473,37 +471,61 @@ end
 local function attach_buffer(bufnr)
   vim.api.nvim_buf_attach(bufnr, false, {
     on_detach = function()
+      state.buffers[bufnr] = nil
+      state.env_by_buf[bufnr] = nil
       if state.buf == bufnr then
         state.buf = nil
-        if not config.persist_env then
-          state.env = nil
-        end
+        pick_active_buffer()
       end
     end,
   })
 end
 
 local function create_repl_buffer()
+  state.counter = state.counter + 1
   local bufnr = vim.api.nvim_create_buf(true, true)
-  configure_buffer(bufnr)
+  local name = state.counter == 1 and "replua://scratch" or string.format("replua://scratch/%d", state.counter)
+  configure_buffer(bufnr, name)
   setup_keymaps(bufnr)
   attach_buffer(bufnr)
+  state.buffers[bufnr] = name
   return bufnr
 end
 
-function M.open()
-  ensure_commands()
-
-  local created = false
-  if not (state.buf and vim.api.nvim_buf_is_valid(state.buf)) then
-    state.buf = create_repl_buffer()
-    created = true
-    if not config.persist_env then
-      state.env = nil
+local function pick_active_buffer()
+  if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
+    return state.buf
+  end
+  for bufnr in pairs(state.buffers) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      state.buf = bufnr
+      return bufnr
     end
   end
+end
 
-  local bufnr = state.buf
+function M.open(opts)
+  opts = opts or {}
+  ensure_commands()
+
+  local bufnr = nil
+  local created = false
+
+  if not opts.force_new then
+    bufnr = pick_active_buffer()
+  end
+
+  if not bufnr then
+    bufnr = create_repl_buffer()
+    created = true
+  end
+
+  state.buf = bufnr
+
+  if not config.persist_env then
+    state.env_by_buf[bufnr] = nil
+  end
+
   local wins = vim.fn.win_findbuf(bufnr)
   if #wins > 0 then
     vim.api.nvim_set_current_win(wins[1])
@@ -540,8 +562,15 @@ function M.eval_current_buffer()
   vim.api.nvim_win_set_cursor(0, { target + 1, 0 })
 end
 
-function M.reset_environment()
-  state.env = nil
+function M.reset_environment(bufnr)
+  local target = bufnr or state.buf or vim.api.nvim_get_current_buf()
+  if not target then
+    return
+  end
+  if not state.buffers[target] then
+    return
+  end
+  state.env_by_buf[target] = nil
 end
 
 function M.setup(opts)
