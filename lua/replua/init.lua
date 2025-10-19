@@ -3,7 +3,10 @@ local M = {}
 local defaults = {
   open_command = "enew",
   intro_lines = {
-    "-- Scratch buffer for Lua evaluation\n\n",
+    "-- replua.nvim *scratch* buffer",
+    "-- Evaluate Lua with <localleader>e (line / visual), <localleader><CR> (block), or <localleader>r (buffer).",
+    "-- Results are appended as Lua comments with Neovim APIs available.",
+    "",
   },
   keymaps = {
     eval_line = "<localleader>e",
