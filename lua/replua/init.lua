@@ -462,10 +462,13 @@ local function is_placeholder_buffer(bufnr)
   if not bufnr or bufnr == 0 or not vim.api.nvim_buf_is_valid(bufnr) then
     return false
   end
-  if vim.api.nvim_buf_get_option(bufnr, "buflisted") then
+  if vim.api.nvim_buf_get_name(bufnr) ~= "" then
     return false
   end
-  if vim.api.nvim_buf_get_name(bufnr) ~= "" then
+  if vim.api.nvim_buf_get_option(bufnr, "modified") then
+    return false
+  end
+  if vim.api.nvim_buf_get_option(bufnr, "buftype") ~= "" then
     return false
   end
   local line_count = vim.api.nvim_buf_line_count(bufnr)
@@ -476,16 +479,47 @@ local function is_placeholder_buffer(bufnr)
   return not line or line == ""
 end
 
-local function open_target_window()
+local function apply_open_command(win)
   local command = config.open_command
   if type(command) == "function" then
     command()
+    local new_win = vim.api.nvim_get_current_win()
+    return new_win, vim.api.nvim_win_get_buf(new_win)
   elseif type(command) == "string" and command ~= "" then
-    vim.cmd("keepalt " .. command)
+    local ok, err = pcall(vim.cmd, "keepalt " .. command)
+    if not ok then
+      vim.notify(string.format("replua.nvim: failed to run open_command %q: %s", command, err), vim.log.levels.WARN)
+      return win, vim.api.nvim_win_get_buf(win)
+    end
+    local new_win = vim.api.nvim_get_current_win()
+    return new_win, vim.api.nvim_win_get_buf(new_win)
   end
-  local win = vim.api.nvim_get_current_win()
-  local placeholder = vim.api.nvim_win_get_buf(win)
-  return win, placeholder
+  return win, vim.api.nvim_win_get_buf(win)
+end
+
+local function prepare_window_for_repl(win)
+  local current_win = win or vim.api.nvim_get_current_win()
+  if not vim.api.nvim_win_is_valid(current_win) then
+    return vim.api.nvim_get_current_win()
+  end
+  local current_buf = vim.api.nvim_win_get_buf(current_win)
+  if not is_placeholder_buffer(current_buf) then
+    return current_win
+  end
+
+  local alt = vim.fn.bufnr("#")
+  if alt ~= -1 and vim.api.nvim_buf_is_valid(alt) then
+    vim.api.nvim_win_set_buf(current_win, alt)
+    return current_win
+  end
+
+  local listed = vim.fn.getbufinfo({ buflisted = 1 })
+  if listed and #listed > 0 then
+    vim.api.nvim_win_set_buf(current_win, listed[1].bufnr)
+    return current_win
+  end
+
+  return current_win
 end
 
 local function attach_buffer(bufnr)
@@ -550,9 +584,12 @@ function M.open(opts)
   if #wins > 0 then
     vim.api.nvim_set_current_win(wins[1])
   else
-    local win, placeholder = open_target_window()
-    vim.api.nvim_win_set_buf(win, bufnr)
-    if placeholder ~= bufnr and is_placeholder_buffer(placeholder) then
+    local target_win = vim.api.nvim_get_current_win()
+    target_win = prepare_window_for_repl(target_win)
+    local new_win, placeholder = apply_open_command(target_win)
+    target_win = prepare_window_for_repl(new_win)
+    vim.api.nvim_win_set_buf(target_win, bufnr)
+    if placeholder and placeholder ~= bufnr and is_placeholder_buffer(placeholder) then
       pcall(vim.api.nvim_buf_delete, placeholder, { force = false })
     end
   end
