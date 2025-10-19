@@ -8,7 +8,6 @@ local defaults = {
   },
   keymaps = {
     eval_line = "<localleader>e",
-    eval_visual = "<localleader>e",
     eval_block = "<localleader><CR>",
     eval_buffer = "<localleader>r",
   },
@@ -281,17 +280,6 @@ local function insert_result(bufnr, line, lines)
   return #payload, appended_blank
 end
 
-local function get_visual_selection_range()
-  local mode = vim.fn.mode()
-  if mode == "v" or mode == "V" or mode == "\22" then
-    local start_pos = vim.fn.getpos("'<")
-    local end_pos = vim.fn.getpos("'>")
-    local start_line = math.min(start_pos[2], end_pos[2]) - 1
-    local end_line = math.max(start_pos[2], end_pos[2]) - 1
-    return start_line, end_line
-  end
-end
-
 local function find_block_edges(bufnr, line)
   local total = vim.api.nvim_buf_line_count(bufnr)
   local current = vim.api.nvim_buf_get_lines(bufnr, line, line + 1, false)[1]
@@ -340,20 +328,6 @@ local function eval_line(bufnr, line)
   local inserted = eval_range(bufnr, line, line)
   local inserted_count = inserted or 0
   local target = line + inserted_count
-  vim.api.nvim_win_set_cursor(0, { target + 1, 0 })
-end
-
-local function eval_visual(bufnr)
-  local start_line, end_line = get_visual_selection_range()
-  if not start_line then
-    return
-  end
-
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
-  local inserted = eval_range(bufnr, start_line, end_line)
-  local inserted_count = inserted or 0
-  local line_count = vim.api.nvim_buf_line_count(bufnr)
-  local target = math.min(end_line + inserted_count, line_count - 1)
   vim.api.nvim_win_set_cursor(0, { target + 1, 0 })
 end
 
@@ -410,12 +384,6 @@ local function setup_keymaps(bufnr)
       local line = vim.api.nvim_win_get_cursor(0)[1] - 1
       eval_line(bufnr, line)
     end, vim.tbl_extend("force", {}, options, { desc = "replua: evaluate current line" }))
-  end
-
-  if km.eval_visual then
-    vim.keymap.set("v", km.eval_visual, function()
-      eval_visual(bufnr)
-    end, vim.tbl_extend("force", {}, options, { desc = "replua: evaluate selection" }))
   end
 
   if km.eval_block then

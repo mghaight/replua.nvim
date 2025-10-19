@@ -9,8 +9,7 @@ interaction mode.
 
 - Opens a scratch buffer (`replua://scratch`) with Neovim APIs and the current
   global environment available.
-- Evaluate the current line, visual selection, surrounding block, or the whole
-  buffer.
+- Evaluate the current line, surrounding block, or the whole buffer.
 - Captures both returned values and `print()` output, appending results as Lua
   comments.
 - Keeps the cursor at a fresh spot for continued editing, just like pressing
@@ -55,7 +54,6 @@ The default keymaps inside the buffer mirror Emacs-style interactions:
 | Mapping             | Mode | Action                                |
 |---------------------|------|---------------------------------------|
 | `<localleader>e`    | n    | Evaluate the current line             |
-| `<localleader>e`    | v    | Evaluate the visual selection         |
 | `<localleader><CR>` | n    | Evaluate the surrounding block        |
 | `<localleader>r`    | n    | Evaluate the entire scratch buffer    |
 
@@ -85,7 +83,6 @@ require("replua").setup({
   open_command = "botright 15split",
   keymaps = {
     eval_line = "<leader>rl",
-    eval_visual = "<leader>rs",
     eval_block = nil, -- disable
     eval_buffer = "<leader>ra",
   },

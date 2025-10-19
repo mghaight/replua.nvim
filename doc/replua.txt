@@ -81,8 +81,8 @@ to sensible defaults.
 
 `keymaps` (table)~
     Override or disable buffer-local mappings. Valid keys: `eval_line`,
-    `eval_visual`, `eval_block`, `eval_buffer`. Set a field to `nil` to skip
-    the mapping entirely.
+    `eval_block`, `eval_buffer`. Set a field to `nil` to skip the mapping
+    entirely.
 
 `print_prefix`, `result_prefix`, `result_continuation_prefix`, `error_prefix`~
     Strings used when formatting output blocks. Useful for aligning with
