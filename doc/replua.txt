@@ -37,6 +37,8 @@ Any Lua executed from the buffer:
   prefixed by `-- print:`.
 - Leaves the cursor after the newly inserted result block and an optional blank
   line, ready for more input.
+- Re-evaluating the same line, block, or entire buffer removes the previous
+  output block before inserting the new results, keeping the scratch tidy.
 
 ==============================================================================
 MAPPINGS                                              *replua.nvim-mappings*
@@ -49,9 +51,6 @@ Normal mode~
     <localleader>e   Evaluate the current line
     <localleader><CR> Evaluate the contiguous Lua block around the cursor
     <localleader>r   Evaluate the entire scratch buffer
-
-Visual mode~
-    <localleader>e   Evaluate the selected range
 
 All mappings may be overridden or disabled via |replua.nvim-config|.
 

@@ -151,6 +151,59 @@ local function render_error_lines(err)
   return lines
 end
 
+local function starts_with(str, prefix)
+  if not str or not prefix or prefix == "" then
+    return false
+  end
+  return str:sub(1, #prefix) == prefix
+end
+
+local function is_result_line(line)
+  return starts_with(line, config.print_prefix)
+    or starts_with(line, config.result_prefix)
+    or starts_with(line, config.result_continuation_prefix)
+    or starts_with(line, config.error_prefix)
+end
+
+local function remove_existing_result(bufnr, start_line, end_line)
+  local first = end_line + 1
+  local total = vim.api.nvim_buf_line_count(bufnr)
+  if first >= total then
+    return
+  end
+
+  local last = first
+  local found = false
+
+  while last < total do
+    local text = vim.api.nvim_buf_get_lines(bufnr, last, last + 1, false)[1]
+    if not text or text == "" then
+      if found and text == "" then
+        last = last + 1
+      end
+      break
+    end
+    if is_result_line(text) then
+      found = true
+      last = last + 1
+    else
+      break
+    end
+  end
+
+  if not found then
+    if config.newline_after_result then
+      local text = vim.api.nvim_buf_get_lines(bufnr, first, first + 1, false)[1]
+      if text == "" then
+        vim.api.nvim_buf_set_lines(bufnr, first, first + 1, false, {})
+      end
+    end
+    return
+  end
+
+  vim.api.nvim_buf_set_lines(bufnr, first, last, false, {})
+end
+
 local function is_identifier(name)
   if not name or name == "" then
     return false
@@ -309,6 +362,8 @@ local function find_block_edges(bufnr, line)
 end
 
 local function eval_range(bufnr, start_line, end_line)
+  remove_existing_result(bufnr, start_line, end_line)
+
   local lines = vim.api.nvim_buf_get_lines(bufnr, start_line, end_line + 1, false)
   if #lines == 0 then
     return 0, false

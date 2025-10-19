@@ -12,6 +12,8 @@ interaction mode.
 - Evaluate the current line, surrounding block, or the whole buffer.
 - Captures both returned values and `print()` output, appending results as Lua
   comments.
+- Re-running the same code replaces the previous output block, keeping the
+  scratch buffer tidy.
 - Keeps the cursor at a fresh spot for continued editing, just like pressing
   `C-j` in Emacs.
 - Provides commands for opening the buffer, evaluating everything, and
