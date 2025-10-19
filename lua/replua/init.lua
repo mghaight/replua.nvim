@@ -1,5 +1,16 @@
 local M = {}
 
+--[[ 
+replua.nvim provides an interactive Lua scratch buffer. This module manages
+buffer lifecycle, evaluation environment isolation, and result rendering so
+that users can iteratively experiment with Neovim APIs without polluting their
+editing session. The code is intentionally verbose to keep the control flow
+obvious for future maintenance.
+]]
+
+-- Default configuration describing how the scratch buffer is created and how
+-- evaluation output should be formatted. Users may override any option from
+-- Lua by calling `require("replua").setup({ ... })`.
 local defaults = {
   open_command = "enew",
   intro_lines = {
@@ -20,8 +31,11 @@ local defaults = {
   persist_env = true,
 }
 
+-- Runtime configuration, cloned from the defaults and extended via `setup()`.
 local config = vim.deepcopy(defaults)
 
+-- Tracks all live scratch buffers and their evaluation environments. Multiple
+-- buffers can exist simultaneously, so each buffer id maps to its own state.
 local state = {
   buf = nil,
   buffers = {},
@@ -32,6 +46,7 @@ local state = {
 
 local pick_active_buffer
 
+-- Keyword set used when validating identifiers during assignment rewriting.
 local lua_keywords = {
   ["and"] = true,
   ["break"] = true,
@@ -57,6 +72,7 @@ local lua_keywords = {
   ["while"] = true,
 }
 
+-- Merge user supplied options into the active configuration.
 local function extend_config(opts)
   if not opts then
     return
@@ -64,6 +80,8 @@ local function extend_config(opts)
   config = vim.tbl_deep_extend("force", vim.deepcopy(config), opts)
 end
 
+-- Lazily create user commands. We guard on `commands_created` so repeated calls
+-- (e.g. when the module reloads) do not register duplicates.
 local function ensure_commands()
   if state.commands_created or not vim.api.nvim_create_user_command then
     return
@@ -84,6 +102,9 @@ local function ensure_commands()
   state.commands_created = true
 end
 
+-- Create or reuse the sandboxed environment for a given scratch buffer. The
+-- environment proxies `_G` for reads but writes stay scoped to the buffer so
+-- separate repl instances cannot stomp on each other.
 local function build_env(bufnr)
   local existing = state.env_by_buf[bufnr]
   if existing then
@@ -106,6 +127,9 @@ local function build_env(bufnr)
   return env
 end
 
+-- Replace `print` inside the evaluation environment with a collector so we can
+-- render `print()` output alongside returned values. The wrapper returns a
+-- cleanup function that restores the original behaviour.
 local function capture_print(env)
   local prints = {}
   rawset(env, "print", function(...)
@@ -123,6 +147,8 @@ local function capture_print(env)
   end
 end
 
+-- Normalise multiline text into comment-prefixed lines that we can insert into
+-- the scratch buffer. Evaluation output is always written through this helper.
 local function extend_with_prefix(target, prefix, text)
   local lines = vim.split(tostring(text), "\n", { plain = true })
   for _, chunk in ipairs(lines) do
@@ -130,6 +156,7 @@ local function extend_with_prefix(target, prefix, text)
   end
 end
 
+-- Bundle return values and captured prints into a single list of comment lines.
 local function render_result_lines(results, prints)
   local lines = {}
 
@@ -149,12 +176,15 @@ local function render_result_lines(results, prints)
   return lines
 end
 
+-- Convert an error into a list of diagnostic comment lines.
 local function render_error_lines(err)
   local lines = {}
   extend_with_prefix(lines, config.error_prefix, err)
   return lines
 end
 
+-- Utility helpers for detecting previously inserted result blocks so they can
+-- be replaced on re-evaluation.
 local function starts_with(str, prefix)
   if not str or not prefix or prefix == "" then
     return false
@@ -169,6 +199,8 @@ local function is_result_line(line)
     or starts_with(line, config.error_prefix)
 end
 
+-- Remove the prior output block (if any) that follows the evaluated range.
+-- This keeps the scratch buffer tidy when lines or blocks are re-run.
 local function remove_existing_result(bufnr, start_line, end_line)
   local first = end_line + 1
   local total = vim.api.nvim_buf_line_count(bufnr)
@@ -208,6 +240,8 @@ local function remove_existing_result(bufnr, start_line, end_line)
   vim.api.nvim_buf_set_lines(bufnr, first, last, false, {})
 end
 
+-- Identifier validation used when rewriting assignments. We only rewrite
+-- simple comma-separated names to avoid surprising behaviour.
 local function is_identifier(name)
   if not name or name == "" then
     return false
@@ -232,6 +266,8 @@ local function split_identifiers(text)
   return names
 end
 
+-- Mirror assigned locals into `_ENV` so subsequent snippets can observe them.
+-- We also return the values to emulate traditional REPL feedback.
 local function append_env_updates(lines, names)
   for _, name in ipairs(names) do
     table.insert(lines, string.format("_ENV[%q] = %s", name, name))
@@ -239,6 +275,9 @@ local function append_env_updates(lines, names)
   table.insert(lines, "return " .. table.concat(names, ", "))
 end
 
+-- Try to rewrite assignments so that top-level locals persist across
+-- evaluations and display their values automatically. Complex statements we do
+-- not recognise fall through unchanged.
 local function transform_assignment(code)
   local trimmed = vim.trim(code)
   if trimmed == "" then
@@ -292,6 +331,10 @@ local function transform_assignment(code)
   return code
 end
 
+-- Compile and execute the snippet associated with a buffer. We first attempt
+-- to wrap the code in `return` so standalone expressions produce values; if
+-- compilation fails we retry with the raw text (after possible assignment
+-- rewriting).
 local function eval(bufnr, code)
   local env = build_env(bufnr)
   local chunk, err = load("return " .. code, "replua", "t", env)
@@ -316,6 +359,8 @@ local function eval(bufnr, code)
   return true, render_result_lines(packed, prints)
 end
 
+-- Insert the rendered result block immediately after the evaluated range.
+-- Returns the number of inserted lines so cursor placement can be adjusted.
 local function insert_result(bufnr, line, lines)
   local payload = {}
   vim.list_extend(payload, lines)
@@ -333,6 +378,8 @@ local function insert_result(bufnr, line, lines)
   return #payload, appended_blank
 end
 
+-- Locate the contiguous block surrounding the cursor so we can emulate the
+-- classic "evaluate current form" behaviour from Lispy REPLs.
 local function find_block_edges(bufnr, line)
   local total = vim.api.nvim_buf_line_count(bufnr)
   local current = vim.api.nvim_buf_get_lines(bufnr, line, line + 1, false)[1]
@@ -361,6 +408,8 @@ local function find_block_edges(bufnr, line)
   return start_line, end_line
 end
 
+-- Shared implementation for line / block / buffer evaluation. It extracts the
+-- selected text, executes it, and records the resulting comment block.
 local function eval_range(bufnr, start_line, end_line)
   remove_existing_result(bufnr, start_line, end_line)
 
@@ -379,6 +428,7 @@ local function eval_range(bufnr, start_line, end_line)
   return insert_result(bufnr, end_line + 1, result_lines)
 end
 
+-- Entry point for the line keymap.
 local function eval_line(bufnr, line)
   local inserted = eval_range(bufnr, line, line)
   local inserted_count = inserted or 0
@@ -386,6 +436,7 @@ local function eval_line(bufnr, line)
   vim.api.nvim_win_set_cursor(0, { target + 1, 0 })
 end
 
+-- Entry point for the block evaluation keymap.
 local function eval_block(bufnr, line)
   local start_line, end_line = find_block_edges(bufnr, line)
   if not start_line then
@@ -398,6 +449,8 @@ local function eval_block(bufnr, line)
   vim.api.nvim_win_set_cursor(0, { target + 1, 0 })
 end
 
+-- Prepare a brand-new scratch buffer. The buffer is `nofile`, modifiable, and
+-- receives an optional introductory banner for first-time users.
 local function configure_buffer(bufnr, buf_name)
   local opts = {
     buftype = "nofile",
@@ -429,6 +482,8 @@ local function configure_buffer(bufnr, buf_name)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, intro)
 end
 
+-- Install buffer-local mappings so the scratch buffer behaves consistently
+-- regardless of user-wide normal-mode bindings.
 local function setup_keymaps(bufnr)
   local options = { buffer = bufnr, silent = true }
   local km = config.keymaps or {}
@@ -458,6 +513,9 @@ local function setup_keymaps(bufnr)
   end
 end
 
+-- Detect anonymous, empty buffers created as temporary placeholders by some
+-- window commands (e.g. `:enew`). We reuse these windows instead of leaving
+-- `[No Name]` buffers behind.
 local function is_placeholder_buffer(bufnr)
   if not bufnr or bufnr == 0 or not vim.api.nvim_buf_is_valid(bufnr) then
     return false
@@ -479,6 +537,8 @@ local function is_placeholder_buffer(bufnr)
   return not line or line == ""
 end
 
+-- Execute the configured `open_command`, capturing both the resulting window
+-- and any buffer it left behind so we can clean up placeholder buffers later.
 local function apply_open_command(win)
   local command = config.open_command
   if type(command) == "function" then
@@ -497,6 +557,9 @@ local function apply_open_command(win)
   return win, vim.api.nvim_win_get_buf(win)
 end
 
+-- Ensure the target window contains something meaningful before we replace its
+-- buffer with the repl. Falling back to the alternate buffer keeps window
+-- navigation intuitive when the repl buffer is closed.
 local function prepare_window_for_repl(win)
   local current_win = win or vim.api.nvim_get_current_win()
   if not vim.api.nvim_win_is_valid(current_win) then
@@ -522,6 +585,8 @@ local function prepare_window_for_repl(win)
   return current_win
 end
 
+-- Track lifecycle events so we can drop per-buffer state when a scratch buffer
+-- is wiped by the user.
 local function attach_buffer(bufnr)
   vim.api.nvim_buf_attach(bufnr, false, {
     on_detach = function()
@@ -535,6 +600,9 @@ local function attach_buffer(bufnr)
   })
 end
 
+-- Create a fresh scratch buffer, register keymaps, and remember its name so
+-- tools like Telescope can surface it. Buffer names increment for clarity
+-- (`replua://scratch/2`, `/3`, ...).
 local function create_repl_buffer()
   state.counter = state.counter + 1
   local bufnr = vim.api.nvim_create_buf(true, true)
@@ -546,6 +614,8 @@ local function create_repl_buffer()
   return bufnr
 end
 
+-- Pick an existing scratch buffer to focus, preferring the most recently used
+-- one tracked in `state.buf`.
 pick_active_buffer = function()
   if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
     return state.buf
@@ -558,6 +628,9 @@ pick_active_buffer = function()
   end
 end
 
+-- Public entry point: open an existing scratch buffer or create a new one.
+-- Passing `force_new = true` (triggered via `:RepluaOpen!`) always starts a
+-- fresh buffer with an isolated environment.
 function M.open(opts)
   opts = opts or {}
   ensure_commands()
@@ -577,6 +650,8 @@ function M.open(opts)
   state.buf = bufnr
 
   if not config.persist_env then
+    -- Allow users to disable environment persistence globally; the buffer still
+    -- retains text, but evaluation restarts from a clean slate.
     state.env_by_buf[bufnr] = nil
   end
 
@@ -590,6 +665,8 @@ function M.open(opts)
     target_win = prepare_window_for_repl(new_win)
     vim.api.nvim_win_set_buf(target_win, bufnr)
     if placeholder and placeholder ~= bufnr and is_placeholder_buffer(placeholder) then
+      -- Window commands like `enew` often leave an empty buffer behind. Clean
+      -- it up quietly so buffer lists stay tidy.
       pcall(vim.api.nvim_buf_delete, placeholder, { force = false })
     end
   end
@@ -609,6 +686,8 @@ function M.open(opts)
   return bufnr
 end
 
+-- Evaluate the entire scratch buffer. This mirrors the original `:RepluaEval`
+-- behaviour but shares the cursor-placement niceties from other entry points.
 function M.eval_current_buffer()
   local bufnr = M.open()
   if not bufnr then
@@ -622,6 +701,8 @@ function M.eval_current_buffer()
   vim.api.nvim_win_set_cursor(0, { target + 1, 0 })
 end
 
+-- Drop the evaluation environment for a specific scratch buffer. Handy when a
+-- user wants to clear definitions without wiping buffer contents.
 function M.reset_environment(bufnr)
   local target = bufnr or state.buf or vim.api.nvim_get_current_buf()
   if not target then
@@ -633,6 +714,7 @@ function M.reset_environment(bufnr)
   state.env_by_buf[target] = nil
 end
 
+-- Public configuration hook.
 function M.setup(opts)
   extend_config(opts)
   ensure_commands()
