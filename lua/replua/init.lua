@@ -126,7 +126,10 @@ end
 
 local function eval(code)
   local env = build_env()
-  local chunk, err = load(code, "replua", "t", env)
+  local chunk, err = load("return " .. code, "replua", "t", env)
+  if not chunk then
+    chunk, err = load(code, "replua", "t", env)
+  end
   if not chunk then
     return false, render_error_lines(err)
   end
