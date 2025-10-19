@@ -459,7 +459,7 @@ local function setup_keymaps(bufnr)
   end
 end
 
-local function open_target_buffer()
+local function open_target_window()
   local command = config.open_command
   if type(command) == "function" then
     command()
@@ -468,7 +468,7 @@ local function open_target_buffer()
   else
     vim.cmd("enew")
   end
-  return vim.api.nvim_get_current_buf()
+  return vim.api.nvim_get_current_win()
 end
 
 local function attach_buffer(bufnr)
@@ -484,38 +484,45 @@ local function attach_buffer(bufnr)
   })
 end
 
-function M.open()
-  ensure_commands()
-
-  if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
-    local wins = vim.fn.win_findbuf(state.buf)
-    if #wins > 0 then
-      vim.api.nvim_set_current_win(wins[1])
-    else
-      open_target_buffer()
-      vim.api.nvim_win_set_buf(0, state.buf)
-    end
-    return state.buf
-  end
-
-  local bufnr = open_target_buffer()
-  state.buf = bufnr
-  if not config.persist_env then
-    state.env = nil
-  end
-
+local function create_repl_buffer()
+  local bufnr = vim.api.nvim_create_buf(false, true)
   configure_buffer(bufnr)
   setup_keymaps(bufnr)
   attach_buffer(bufnr)
+  return bufnr
+end
 
-  local line_count = vim.api.nvim_buf_line_count(bufnr)
-  if line_count > 0 then
-    local last_line = vim.api.nvim_buf_get_lines(bufnr, line_count - 1, line_count, false)[1]
-    if last_line ~= "" then
-      vim.api.nvim_buf_set_lines(bufnr, line_count, line_count, false, { "" })
-      line_count = line_count + 1
+function M.open()
+  ensure_commands()
+
+  local created = false
+  if not (state.buf and vim.api.nvim_buf_is_valid(state.buf)) then
+    state.buf = create_repl_buffer()
+    created = true
+    if not config.persist_env then
+      state.env = nil
     end
-    vim.api.nvim_win_set_cursor(0, { line_count, 0 })
+  end
+
+  local bufnr = state.buf
+  local wins = vim.fn.win_findbuf(bufnr)
+  if #wins > 0 then
+    vim.api.nvim_set_current_win(wins[1])
+  else
+    open_target_window()
+    vim.api.nvim_win_set_buf(0, bufnr)
+  end
+
+  if created then
+    local line_count = vim.api.nvim_buf_line_count(bufnr)
+    if line_count > 0 then
+      local last_line = vim.api.nvim_buf_get_lines(bufnr, line_count - 1, line_count, false)[1]
+      if last_line ~= "" then
+        vim.api.nvim_buf_set_lines(bufnr, line_count, line_count, false, { "" })
+        line_count = line_count + 1
+      end
+      vim.api.nvim_win_set_cursor(0, { line_count, 0 })
+    end
   end
 
   return bufnr

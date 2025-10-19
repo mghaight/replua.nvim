@@ -18,6 +18,8 @@ interaction mode.
   `C-j` in Emacs.
 - Provides commands for opening the buffer, evaluating everything, and
   resetting the Lua environment.
+- The scratch buffer persists for the entire Neovim session; reopen it with
+  `:RepluaOpen` to resume where you left off (closing the buffer resets it).
 - Top-level assignments echo their values and stay available for later
   evaluation.
 
