@@ -30,6 +30,8 @@ local state = {
   counter = 0,
 }
 
+local pick_active_buffer
+
 local lua_keywords = {
   ["and"] = true,
   ["break"] = true,
@@ -492,7 +494,7 @@ local function create_repl_buffer()
   return bufnr
 end
 
-local function pick_active_buffer()
+pick_active_buffer = function()
   if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
     return state.buf
   end
