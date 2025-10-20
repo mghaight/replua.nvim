@@ -1,16 +1,7 @@
 local M = {}
 
---[[ 
-replua.nvim provides an interactive Lua scratch buffer. This module manages
-buffer lifecycle, evaluation environment isolation, and result rendering so
-that users can iteratively experiment with Neovim APIs without polluting their
-editing session. The code is intentionally verbose to keep the control flow
-obvious for future maintenance.
-]]
-
 -- Default configuration describing how the scratch buffer is created and how
--- evaluation output should be formatted. Users may override any option from
--- Lua by calling `require("replua").setup({ ... })`.
+-- evaluation output should be formatted.
 local defaults = {
   open_command = "enew",
   intro_lines = {
@@ -129,7 +120,7 @@ end
 
 -- Replace `print` inside the evaluation environment with a collector so we can
 -- render `print()` output alongside returned values. The wrapper returns a
--- cleanup function that restores the original behaviour.
+-- cleanup function that restores the original behavior.
 local function capture_print(env)
   local prints = {}
   rawset(env, "print", function(...)
@@ -147,7 +138,7 @@ local function capture_print(env)
   end
 end
 
--- Normalise multiline text into comment-prefixed lines that we can insert into
+-- Normalize multiline text into comment-prefixed lines that we can insert into
 -- the scratch buffer. Evaluation output is always written through this helper.
 local function extend_with_prefix(target, prefix, text)
   local lines = vim.split(tostring(text), "\n", { plain = true })
@@ -194,9 +185,9 @@ end
 
 local function is_result_line(line)
   return starts_with(line, config.print_prefix)
-    or starts_with(line, config.result_prefix)
-    or starts_with(line, config.result_continuation_prefix)
-    or starts_with(line, config.error_prefix)
+      or starts_with(line, config.result_prefix)
+      or starts_with(line, config.result_continuation_prefix)
+      or starts_with(line, config.error_prefix)
 end
 
 -- Remove the prior output block (if any) that follows the evaluated range.
@@ -241,7 +232,7 @@ local function remove_existing_result(bufnr, start_line, end_line)
 end
 
 -- Identifier validation used when rewriting assignments. We only rewrite
--- simple comma-separated names to avoid surprising behaviour.
+-- simple comma-separated names to avoid surprising behavior.
 local function is_identifier(name)
   if not name or name == "" then
     return false
@@ -267,7 +258,7 @@ local function split_identifiers(text)
 end
 
 -- Mirror assigned locals into `_ENV` so subsequent snippets can observe them.
--- We also return the values to emulate traditional REPL feedback.
+-- Also return the values to emulate traditional REPL feedback.
 local function append_env_updates(lines, names)
   for _, name in ipairs(names) do
     table.insert(lines, string.format("_ENV[%q] = %s", name, name))
@@ -276,8 +267,7 @@ local function append_env_updates(lines, names)
 end
 
 -- Try to rewrite assignments so that top-level locals persist across
--- evaluations and display their values automatically. Complex statements we do
--- not recognise fall through unchanged.
+-- evaluations and display their values automatically.
 local function transform_assignment(code)
   local trimmed = vim.trim(code)
   if trimmed == "" then
@@ -331,9 +321,9 @@ local function transform_assignment(code)
   return code
 end
 
--- Compile and execute the snippet associated with a buffer. We first attempt
+-- Compile and execute the snippet associated with a buffer. First attempt
 -- to wrap the code in `return` so standalone expressions produce values; if
--- compilation fails we retry with the raw text (after possible assignment
+-- compilation fails, retry with the raw text (after possible assignment
 -- rewriting).
 local function eval(bufnr, code)
   local env = build_env(bufnr)
@@ -514,7 +504,7 @@ local function setup_keymaps(bufnr)
 end
 
 -- Detect anonymous, empty buffers created as temporary placeholders by some
--- window commands (e.g. `:enew`). We reuse these windows instead of leaving
+-- window commands (e.g. `:enew`). Reuse these windows instead of leaving
 -- `[No Name]` buffers behind.
 local function is_placeholder_buffer(bufnr)
   if not bufnr or bufnr == 0 or not vim.api.nvim_buf_is_valid(bufnr) then
